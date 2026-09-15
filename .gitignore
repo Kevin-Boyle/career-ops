@@ -200,3 +200,7 @@ documents/*
 # Intake fingerprints — the recorded source filenames may themselves carry
 # PII (e.g. cv/jane-doe-master-cv.pdf). #1723
 data/intake-state.json
+
+# harvest-buildlist.mjs output — a generated, user-specific company list
+# (which companies YOU chose to track). Regenerate with `npm run harvest:buildlist`.
+buildlist-portals.yml

@@ -30,6 +30,7 @@ All scripts live in the project root as `.mjs` modules. Most are exposed via
 | `npm run scan` | `scan.mjs` | Zero-token portal scanner |
 | `npm run scan:full` | `scan-ats-full.mjs` | Reverse ATS discovery scanner |
 | `npm run company:funded` | `company-funded.mjs` | Review-first discovery of recently funded companies |
+| `npm run harvest:buildlist` | `harvest-buildlist.mjs` | Resolve BuildList's company roster to scannable ATS boards |
 | `npm run validate:portals` | `validate-portals.mjs` | Validate portals.yml shape before scanning |
 | `npm run tracker` | `tracker.mjs` | SQLite derived index over applications.md — sync/query/history/export |
 | `npm run find` | `find.mjs` | Resolve a report#/tracker#/company query to its full pipeline identity |
@@ -746,6 +747,41 @@ Runs without `--dry-run` write JSON under `output/` and a Markdown report under 
 Source diagnostics are included in JSON output and surfaced in human output when a source has errors, is blocked, returns no items, or when no candidates are found.
 
 **Exit codes:** `0` discovery completed, `1` invalid arguments or fatal runtime error.
+
+---
+
+## harvest:buildlist
+
+Turns [BuildList](https://buildlist.xyz)'s company roster into companies `scan.mjs` can read. BuildList indexes ~780 hard-tech startups (AI, robotics, aerospace, defense, energy), and every "Apply" link on it points at the company's own ATS — so its value here is the **company list**, not the job feed. Harvest once and the companies are yours; scanning never touches BuildList again.
+
+It reads the public sitemap and public company pages only (`robots.txt` disallows `/api/` for every agent), and **never writes `portals.yml`** — it writes a file for you to review and paste.
+
+```bash
+npm run harvest:buildlist -- --portals --out buildlist-portals.yml
+npm run harvest:buildlist -- --limit 25 --summary     # quick sample
+npm run harvest:buildlist -- --out c.yml --resume     # continue an interrupted sweep
+npm run harvest:buildlist -- --json                   # machine-readable
+npm run harvest:buildlist -- --self-test
+```
+
+**Two outputs, because the admission test differs:**
+
+| Mode | Output | Admits |
+|------|--------|--------|
+| default | a `companies:` file for `discover-ats.mjs` | boards listing ≥1 job **today** |
+| `--portals` | `portals.yml` `tracked_companies:` entries | **every** resolved board |
+
+The job-count test is right when a slug was *guessed* — an empty board is then indistinguishable from a wrong guess. Here the slug is read off the page, so the board is known-good and the job count is only today's weather. Since `tracked_companies` is a standing watch whose purpose is catching a role the day it opens, `--portals` is the better mode for building the list; `title_filter` still does the per-scan filtering on live postings.
+
+**Why it reads the page instead of guessing the slug.** BuildList's URL slug is frequently not the ATS slug — `altos-labs` is Greenhouse `altoslabs`, `altana` is `altanaai`, `agility-robotics` is a Greenhouse embed. Feeding guessed slugs to `discover-ats.mjs` resolved 6 of 20 in testing; reading the Apply links resolves 569 of 776.
+
+Recognized vendors: Greenhouse (including the `boards-api` host and `?for=` embeds), Ashby, Lever, Rippling, Workable, SmartRecruiters, Join, Recruitee, Breezy, BambooHR, Pinpoint, Gem, iCIMS, Personio, Teamtailor. Workday and Comeet are listed as **manual follow-up** rather than emitted — Workday needs a tenant coordinate a slug cannot supply, and Comeet's provider needs a careers-api URL carrying a secret `?token=` the public page never exposes.
+
+`--portals` skips companies `portals.yml` already tracks (matching on name **or** board), because `portals.yml` has no dedup pass and a duplicate entry silently double-scans. `--include-tracked` disables that; `--portals-file` points at a different file; `--disabled` stages entries as `enabled: false` so you can widen the scan gradually.
+
+Company profile text (sector, description, HQ, headcount, funding) is BuildList's own editorial content, carried into the `notes:` field as context only. It is never a scoring input and never reaches generated user-facing content.
+
+**Exit codes:** `0` harvest completed, `1` invalid arguments or fatal runtime error.
 
 ---
 

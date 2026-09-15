@@ -181,11 +181,13 @@ function pathSegments(url) {
 }
 
 const USAGE = `Usage:
-  node harvest-buildlist.mjs --out buildlist-companies.yml   # full sweep (~830 pages)
-  node harvest-buildlist.mjs --limit 25 --summary            # quick sample, human table
-  node harvest-buildlist.mjs --out c.yml --resume            # continue an interrupted sweep
-  node harvest-buildlist.mjs --json                          # machine-readable result
-  node harvest-buildlist.mjs --self-test                     # inline test suite
+  node harvest-buildlist.mjs --portals --out buildlist-portals.yml
+                                                  # portals.yml entries for every resolved board
+  node harvest-buildlist.mjs --out companies.yml  # discover-ats.mjs input (job-count validated)
+  node harvest-buildlist.mjs --limit 25 --summary # quick sample, human table
+  node harvest-buildlist.mjs --out c.yml --resume # continue an interrupted sweep
+  node harvest-buildlist.mjs --json               # machine-readable result
+  node harvest-buildlist.mjs --self-test          # inline test suite
   node harvest-buildlist.mjs --help
 
 Options:
@@ -203,8 +205,9 @@ Options:
   --summary           Human-readable table instead of YAML
   --json              JSON result instead of YAML
 
-This script NEVER writes portals.yml. It produces an input file for
-discover-ats.mjs, which validates each board and needs its own --write.`;
+This script NEVER writes portals.yml — it writes a file for you to review and
+paste. --portals admits every resolved board; the default mode hands off to
+discover-ats.mjs, which re-probes and admits only boards listing a job today.`;
 
 /**
  * Extract company slugs from BuildList's company sitemap XML.
