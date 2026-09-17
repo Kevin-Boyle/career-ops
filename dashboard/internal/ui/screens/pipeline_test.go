@@ -1,6 +1,8 @@
 package screens
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -763,6 +765,55 @@ func TestGetStatusPairsUnrecognizedStatusFallsBackToStaticOrder(t *testing.T) {
 	for i := range base {
 		if got[i].Canonical != base[i].Canonical {
 			t.Fatalf("got[%d].Canonical = %q, want %q (static order)", i, got[i].Canonical, base[i].Canonical)
+		}
+	}
+}
+
+// canonicalStateLabels reads the `label:` of every entry in
+// templates/states.yml, the source of truth this file's header calls binding on
+// both career-ops (writer) and the dashboard (reader).
+//
+// Read rather than restated: the drift this guards against is exactly what a
+// second hand-maintained copy of the list would be subject to. states.yml is a
+// flat list, so a line scan is enough and keeps the dashboard free of a YAML
+// dependency it does not otherwise carry.
+func canonicalStateLabels(t *testing.T) map[string]bool {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "..", "..", "templates", "states.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	labels := make(map[string]bool)
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "label:") {
+			continue
+		}
+		if label := strings.TrimSpace(strings.TrimPrefix(trimmed, "label:")); label != "" {
+			labels[label] = true
+		}
+	}
+
+	if len(labels) == 0 {
+		t.Fatalf("no state labels parsed from %s", path)
+	}
+	return labels
+}
+
+// TestGetStatusPairsCanonicalValuesMatchStatesYml guards the values the status
+// picker writes into applications.md. The picked pair's Canonical field reaches
+// UpdateApplicationStatusAndNotes unnormalized and is written into the Status
+// cell verbatim, so a value that is not a states.yml label lands a
+// non-canonical status in the tracker.
+func TestGetStatusPairsCanonicalValuesMatchStatesYml(t *testing.T) {
+	labels := canonicalStateLabels(t)
+
+	for _, pair := range getStatusPairs("") {
+		if !labels[pair.Canonical] {
+			t.Errorf("status pair %q writes canonical value %q, which is not a label in templates/states.yml", pair.Display, pair.Canonical)
 		}
 	}
 }

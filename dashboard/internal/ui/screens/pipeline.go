@@ -214,7 +214,7 @@ func getStatusPairs(currentNormalized string) []StatusPair {
 		{i18n.Current.StatusHired, "Hired"},
 		{i18n.Current.StatusRejected, "Rejected"},
 		{i18n.Current.StatusDiscarded, "Discarded"},
-		{i18n.Current.StatusSkip, "Skip"},
+		{i18n.Current.StatusSkip, "SKIP"},
 	}
 
 	if currentNormalized == "" {
