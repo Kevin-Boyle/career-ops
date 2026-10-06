@@ -41,8 +41,12 @@ type ViewerModel struct {
 	app             model.CareerApplication
 	careerOpsPath   string
 	coverLetterPath string
+	jobURL          string
 	statusPicker    bool
 	statusCursor    int
+	// flash is a one-shot notice rendered in place of the footer, cleared on
+	// the next key press (same contract as the pipeline screen's flash).
+	flash string
 }
 
 // NewViewerModel creates a new file viewer for the given path.
@@ -66,6 +70,7 @@ func NewViewerModel(t theme.Theme, careerOpsPath, path, title string, width, hei
 		app:             app,
 		careerOpsPath:   careerOpsPath,
 		coverLetterPath: parseCoverLetterPath(lines, careerOpsPath),
+		jobURL:          resolveJobURL(app, lines),
 	}
 	m.rebuildRender()
 	return m
@@ -92,6 +97,20 @@ func parseCoverLetterPath(lines []string, careerOpsPath string) string {
 					return relPath
 				}
 			}
+		}
+	}
+	return ""
+}
+
+// resolveJobURL returns the posting URL for the open report: the tracker row's
+// JobURL when known, else the report's own **URL:** header line.
+func resolveJobURL(app model.CareerApplication, lines []string) string {
+	if app.JobURL != "" {
+		return app.JobURL
+	}
+	for _, line := range lines {
+		if sm := reReportURLLine.FindStringSubmatch(strings.TrimSpace(line)); sm != nil {
+			return sm[1]
 		}
 	}
 	return ""
@@ -129,12 +148,21 @@ func (m *ViewerModel) Resize(width, height int) {
 func (m ViewerModel) Update(msg tea.Msg) (ViewerModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		m.flash = ""
 		if m.statusPicker {
 			return m.handleStatusPicker(msg)
 		}
 		switch msg.String() {
 		case "q", "esc":
 			return m, func() tea.Msg { return ViewerClosedMsg{} }
+
+		case "o":
+			if m.jobURL == "" {
+				m.flash = "No URL found for this application"
+				break
+			}
+			url := m.jobURL
+			return m, func() tea.Msg { return PipelineOpenURLMsg{URL: url} }
 
 		case "c":
 			m.statusPicker = true
@@ -197,6 +225,11 @@ func (m ViewerModel) Update(msg tea.Msg) (ViewerModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.rebuildRender()
+
+	case PipelineOpenFailedMsg:
+		// Issue 3913: main.go routes this to the active screen; while the
+		// viewer is open, the pipeline's flash line is not on screen.
+		m.flash = "Could not open " + msg.Target + ": " + msg.Err
 	}
 
 	return m, nil
@@ -493,6 +526,7 @@ var (
 	reInlineCode     = regexp.MustCompile("`([^`]+)`")
 	reListNumber     = regexp.MustCompile(`^(\s*\d+\.\s+)(.*)$`)
 	reCoverLetterPDF = regexp.MustCompile(`PDF generated:\s*(output/[^\s]+\.pdf)`)
+	reReportURLLine  = regexp.MustCompile(`^\*\*URL:\*\*\s*(https?://\S+)`)
 	reRelPDFPath     = regexp.MustCompile(`output/cv-[^\s\)\]\.,;:!?"']+\.pdf`)
 )
 
@@ -710,6 +744,15 @@ func (m ViewerModel) renderFooter() string {
 	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(m.theme.Text)
 	descStyle := lipgloss.NewStyle().Foreground(m.theme.Subtext)
 
+	if m.flash != "" {
+		flashStyle := lipgloss.NewStyle().
+			Foreground(m.theme.Yellow).
+			Background(m.theme.Surface).
+			Width(m.width).
+			Padding(0, 1)
+		return flashStyle.Render(sanitizeFlash(m.flash))
+	}
+
 	if m.statusPicker {
 		return style.Render(
 			keyStyle.Render("↑/↓/j/k") + descStyle.Render(i18n.Current.HelpNav) +
@@ -722,6 +765,7 @@ func (m ViewerModel) renderFooter() string {
 		keyStyle.Render("PgUp/Dn") + descStyle.Render(i18n.Current.HelpPage) + // pagination
 		keyStyle.Render("g/G") + descStyle.Render(i18n.Current.HelpTopEnd) + // top/bottom
 		keyStyle.Render("c") + descStyle.Render(i18n.Current.HelpChange) + // status
+		m.openURLHint(keyStyle, descStyle) + // job posting
 		keyStyle.Render("t") + descStyle.Render(i18n.Current.HelpLanguage) + // language
 		keyStyle.Render("Esc") + descStyle.Render(i18n.Current.HelpBack) // exit
 
@@ -730,6 +774,14 @@ func (m ViewerModel) renderFooter() string {
 	}
 
 	return style.Render(footer)
+}
+
+// openURLHint shows the `o` shortcut only when the report has a posting URL.
+func (m ViewerModel) openURLHint(keyStyle, descStyle lipgloss.Style) string {
+	if m.jobURL == "" {
+		return ""
+	}
+	return keyStyle.Render("o") + descStyle.Render(i18n.Current.HelpOpenURL)
 }
 
 func (m ViewerModel) handleStatusPicker(msg tea.KeyMsg) (ViewerModel, tea.Cmd) {
