@@ -48,6 +48,36 @@ func TestResolveJobURLIgnoresNonHTTPHeader(t *testing.T) {
 	}
 }
 
+func TestResolveJobURLRejectsHostlessURLs(t *testing.T) {
+	app := model.CareerApplication{JobURL: "https://?x"}
+	lines := []string{"**URL:** https://", "**URL:** https://?ref=1"}
+
+	if got := resolveJobURL(app, lines); got != "" {
+		t.Fatalf("resolveJobURL = %q, want empty for hostless URLs", got)
+	}
+}
+
+func TestResolveJobURLSkipsInvalidTrackerURL(t *testing.T) {
+	app := model.CareerApplication{JobURL: "https://?x"}
+	lines := []string{"**URL:** https://jobs.example.com/acme/123"}
+
+	if got := resolveJobURL(app, lines); got != "https://jobs.example.com/acme/123" {
+		t.Fatalf("resolveJobURL = %q, want the report header when the tracker URL is unusable", got)
+	}
+}
+
+func TestResolveJobURLSkipsInvalidHeaderForLaterValidOne(t *testing.T) {
+	lines := []string{
+		"**URL:** local:jds/acme-engineer.md",
+		"**URL:** https://",
+		"**URL:** HTTPS://jobs.example.com/acme/123",
+	}
+
+	if got := resolveJobURL(model.CareerApplication{}, lines); got != "HTTPS://jobs.example.com/acme/123" {
+		t.Fatalf("resolveJobURL = %q, want the first usable header", got)
+	}
+}
+
 func TestNewViewerModelReadsURLFromReport(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "001-acme-2026-01-01.md")

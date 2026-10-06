@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -103,17 +104,25 @@ func parseCoverLetterPath(lines []string, careerOpsPath string) string {
 }
 
 // resolveJobURL returns the posting URL for the open report: the tracker row's
-// JobURL when known, else the report's own **URL:** header line.
+// JobURL when it is a usable web URL, else the first usable **URL:** header
+// line in the report. Anything else (a hostless "https://?x", a local:jds/
+// pointer) is skipped rather than handed to the platform opener.
 func resolveJobURL(app model.CareerApplication, lines []string) string {
-	if app.JobURL != "" {
+	if isWebURL(app.JobURL) {
 		return app.JobURL
 	}
 	for _, line := range lines {
-		if sm := reReportURLLine.FindStringSubmatch(strings.TrimSpace(line)); sm != nil {
+		if sm := reReportURLLine.FindStringSubmatch(strings.TrimSpace(line)); sm != nil && isWebURL(sm[1]) {
 			return sm[1]
 		}
 	}
 	return ""
+}
+
+// isWebURL reports whether raw is an absolute http(s) URL with a host.
+func isWebURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // rebuildRender recomputes renderedLines from raw lines using the current width.
@@ -526,7 +535,7 @@ var (
 	reInlineCode     = regexp.MustCompile("`([^`]+)`")
 	reListNumber     = regexp.MustCompile(`^(\s*\d+\.\s+)(.*)$`)
 	reCoverLetterPDF = regexp.MustCompile(`PDF generated:\s*(output/[^\s]+\.pdf)`)
-	reReportURLLine  = regexp.MustCompile(`^\*\*URL:\*\*\s*(https?://\S+)`)
+	reReportURLLine  = regexp.MustCompile(`^\*\*URL:\*\*\s*(\S+)`)
 	reRelPDFPath     = regexp.MustCompile(`output/cv-[^\s\)\]\.,;:!?"']+\.pdf`)
 )
 
