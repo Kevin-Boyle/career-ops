@@ -1,7 +1,6 @@
 package screens
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -622,6 +621,8 @@ func findInlineMatch(s string, codeStyle, boldStyle, linkStyle lipgloss.Style, c
 // sequence and show the text as before.
 const osc8Close = "\x1b]8;;\x07"
 
+const upperHex = "0123456789ABCDEF"
+
 // reOSC8 matches one OSC 8 sequence, terminated by BEL or ST (pipeline.go's
 // manifesto link uses ST). Group 2 is the URI; an empty URI closes the link.
 var reOSC8 = regexp.MustCompile("\x1b\\]8;([^;\x07\x1b]*);([^\x07\x1b]*)(?:\x07|\x1b\\\\)")
@@ -681,7 +682,9 @@ func osc8URI(target string) (string, bool) {
 			return "", false
 		case r == ' ' || r > 0x7e:
 			for _, c := range []byte(string(r)) {
-				fmt.Fprintf(&b, "%%%02X", c)
+				b.WriteByte('%')
+				b.WriteByte(upperHex[c>>4])
+				b.WriteByte(upperHex[c&0x0f])
 			}
 		default:
 			b.WriteRune(r)
