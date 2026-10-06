@@ -490,7 +490,7 @@ func (m ViewerModel) renderTableBlock(lines []string) []string {
 
 var (
 	reBold           = regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	reLink           = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	reLink           = regexp.MustCompile(`\[([^\]]+)\]\(((?:[^()]|\([^()]*\))+)\)`) // one level of balanced parens in the destination, as CommonMark allows
 	reBareURL        = regexp.MustCompile(`https?://\S*[^\s\)\]\.,;:!?]`)
 	reInlineCode     = regexp.MustCompile("`([^`]+)`")
 	reListNumber     = regexp.MustCompile(`^(\s*\d+\.\s+)(.*)$`)

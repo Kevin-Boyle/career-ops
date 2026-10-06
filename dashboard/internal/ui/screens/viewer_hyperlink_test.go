@@ -125,6 +125,21 @@ func TestViewerLinksBareAndMarkdownURLs(t *testing.T) {
 	}
 }
 
+func TestViewerMarkdownLinkKeepsBalancedParentheses(t *testing.T) {
+	m := newLinkViewer(120,
+		"Read [Go](https://en.wikipedia.org/wiki/Go_(language)) (or [home](https://go.dev)).",
+	)
+	all := strings.Join(m.renderedLines, "\n")
+
+	want := []string{"https://en.wikipedia.org/wiki/Go_(language)", "https://go.dev"}
+	if got := linkTargets(all); strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("targets = %q, want %q", got, want)
+	}
+	if plain := ansi.Strip(all); plain != "Read Go (or home)." {
+		t.Fatalf("plain = %q, want the link syntax hidden and the outer parenthesis kept", plain)
+	}
+}
+
 func TestViewerLeavesUnsafeMarkdownLinkTargetsPlain(t *testing.T) {
 	m := newLinkViewer(120,
 		"[click](javascript:alert(1)) [local](file:///etc/passwd) [rel](reports/001.md)",
