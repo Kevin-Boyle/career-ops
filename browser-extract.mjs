@@ -814,19 +814,27 @@ export function parseArgs(argv) {
 
 // Read the raw DOM inside the page: title, main visible text, and visible
 // anchors. Runs in the browser context; returns plain data only.
-async function readDom(page) {
+export async function readDom(page) {
   return page.evaluate(() => {
     const title = (document.querySelector('h1')?.innerText || document.title || '').trim();
 
     // Main text: prefer <main>/[role=main]/<article>, else body; strip nav chrome.
-    const root =
-      document.querySelector('main, [role="main"], article') || document.body;
+    // Keep the candidate with the most text left after stripping, not the first
+    // match: a board can lead with a short <article> (a share widget) ahead of
+    // the one holding the posting, and a <main> that is mostly menu would
+    // otherwise outrank it.
+    const strippedText = (el) => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('script, style, nav, header, footer, noscript').forEach((n) => n.remove());
+      return clone.innerText || '';
+    };
+    const candidates = Array.from(document.querySelectorAll('main, [role="main"], article'));
     let text = '';
-    if (root) {
-      const clone = root.cloneNode(true);
-      clone.querySelectorAll('script, style, nav, header, footer, noscript').forEach((el) => el.remove());
-      text = clone.innerText || '';
+    for (const el of candidates) {
+      const t = strippedText(el);
+      if (t.length > text.length) text = t;
     }
+    if (candidates.length === 0 && document.body) text = strippedText(document.body);
 
     const anchors = Array.from(document.querySelectorAll('a[href]'))
       .filter((el) => {
