@@ -63,7 +63,14 @@ try {
       title: 'Solutions Architect',
       job_path: '/en/jobs/333/solutions-architect',
       normalized_location: 'Seattle, Washington, USA',
-      locations: [loc('Seattle, Washington, USA'), loc('Arlington, Virginia, USA'), '{not json', loc('Denver, Colorado, USA')],
+      locations: [
+        loc('Seattle, Washington, USA'), loc('Arlington, Virginia, USA'), '{not json',
+        // A non-string normalizedLocation falls back to the raw spelling.
+        JSON.stringify({ normalizedLocation: 123, location: 'US, CO, Denver' }),
+        loc('Denver, Colorado, USA'),
+        // No usable string in either field: skipped.
+        JSON.stringify({ normalizedLocation: null, location: 42 }),
+      ],
     }, {
       // No normalized_location: the primary is the raw spelling, which must
       // still dedupe against the same city's normalized entry.
@@ -76,11 +83,15 @@ try {
   let multiCalls = 0;
   const multiJobs = await amazon.fetch({ name: 'Amazon' }, {
     transport: 'http',
-    async fetchJson() { multiCalls++; return multiCalls === 1 ? multiPage : { jobs: [] }; },
+    async fetchJson(_url, opts) {
+      if (opts?.redirect !== 'error') throw new Error(`fetchJson without redirect:'error': ${JSON.stringify(opts)}`);
+      multiCalls++;
+      return multiCalls === 1 ? multiPage : { jobs: [] };
+    },
     async fetchText() { return ''; },
   });
   const j3 = multiJobs[0];
-  if (j3 && j3.location === 'Seattle, Washington, USA · Arlington, Virginia, USA · Denver, Colorado, USA') pass('amazon.fetch lists every city of a multi-city req, primary first, deduped, malformed entry skipped');
+  if (j3 && j3.location === 'Seattle, Washington, USA · Arlington, Virginia, USA · US, CO, Denver · Denver, Colorado, USA') pass('amazon.fetch lists every city of a multi-city req, primary first, deduped, malformed and non-string entries handled');
   else fail(`amazon.fetch multi-city location wrong: ${JSON.stringify(j3 && j3.location)}`);
   const j4 = multiJobs[1];
   if (j4 && j4.location === 'US, VA, Arlington · Herndon, Virginia, USA') pass('amazon.fetch dedupes a raw-spelled primary against its normalized entry');

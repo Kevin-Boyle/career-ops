@@ -62,8 +62,10 @@ function toEpochMs(job) {
 // Keep the primary first and join the rest with " · ", the multi-location
 // shape location_filter already expects (see workable.mjs), so a req that
 // also lists another city is not filtered out on its primary alone.
+const str = (v) => (typeof v === 'string' ? v.trim() : '');
+
 function formatLocation(job) {
-  const primary = (job.normalized_location || job.location || '').trim();
+  const primary = str(job.normalized_location) || str(job.location);
   const cities = primary ? [primary] : [];
   for (const entry of Array.isArray(job.locations) ? job.locations : []) {
     let loc;
@@ -72,8 +74,8 @@ function formatLocation(job) {
     } catch {
       continue;
     }
-    const spelled = String(loc?.location || '').trim();
-    const name = String(loc?.normalizedLocation || '').trim() || spelled;
+    const spelled = str(loc?.location);
+    const name = str(loc?.normalizedLocation) || spelled;
     // The primary may be either spelling ("Arlington, Virginia, USA" or
     // "US, VA, Arlington"), so check both before appending.
     if (name && !cities.includes(name) && !cities.includes(spelled)) cities.push(name);
