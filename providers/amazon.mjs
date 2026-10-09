@@ -67,6 +67,9 @@ const str = (v) => (typeof v === 'string' ? v.trim() : '');
 function formatLocation(job) {
   const primary = str(job.normalized_location) || str(job.location);
   const cities = primary ? [primary] : [];
+  // Every spelling seen so far: one city can arrive as "Denver, Colorado, USA"
+  // in one entry and only as "US, CO, Denver" in another.
+  const seen = new Set(cities);
   for (const entry of Array.isArray(job.locations) ? job.locations : []) {
     let loc;
     try {
@@ -78,7 +81,8 @@ function formatLocation(job) {
     const name = str(loc?.normalizedLocation) || spelled;
     // The primary may be either spelling ("Arlington, Virginia, USA" or
     // "US, VA, Arlington"), so check both before appending.
-    if (name && !cities.includes(name) && !cities.includes(spelled)) cities.push(name);
+    if (name && !seen.has(name) && !seen.has(spelled)) cities.push(name);
+    for (const s of [name, spelled]) if (s) seen.add(s);
   }
   return cities.join(' · ');
 }
