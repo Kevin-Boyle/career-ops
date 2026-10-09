@@ -73,6 +73,23 @@ try {
     if (restored[0] === 'color: red' && restored[1] === null) pass('readDom restores the style attributes of the chrome it hid');
     else fail(`readDom left the chrome styles changed: ${JSON.stringify(restored)}`);
 
+    // An unterminated comment in the chrome's own style must not swallow the
+    // display:none that hides it for the read.
+    const openComment = await read(`<body>
+      <main><nav style="color: red; /* open">${'Jobs · Teams · Locations · Benefits · '.repeat(15)}</nav><p>Loading…</p></main>
+      <article><h1>Platform Engineer</h1><p>${JD}</p></article>
+    </body>`);
+    const navStyle = await page.evaluate(() => document.querySelector('nav').getAttribute('style'));
+    if (openComment.text.includes('internal developer platform') && navStyle === 'color: red; /* open') {
+      pass('readDom hides chrome whose style has an unterminated comment, and restores it verbatim');
+    } else fail(`readDom chrome with open comment wrong: ${JSON.stringify([openComment.text.slice(0, 80), navStyle])}`);
+
+    // A display:contents candidate has no box of its own but renders its
+    // children, so its text is still read.
+    const contents = await read(`<body><main style="display:contents"><h1>Platform Engineer</h1><p>${JD}</p></main></body>`);
+    if (contents.text.includes('internal developer platform')) pass('readDom reads a display:contents candidate');
+    else fail(`readDom skipped a display:contents candidate: ${JSON.stringify(contents.text.slice(0, 80))}`);
+
     // Every candidate a stub: stay on the stub (jd mode then fails empty_text
     // and the caller falls back) rather than reading unrelated body text.
     const allStubs = await read(`<body>

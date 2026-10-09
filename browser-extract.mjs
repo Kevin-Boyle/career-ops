@@ -831,8 +831,11 @@ export async function readDom(page) {
       if (el.getClientRects().length === 0 && getComputedStyle(el).display !== 'contents') return '';
       const chrome = Array.from(el.querySelectorAll('nav, header, footer'));
       const saved = chrome.map((n) => n.getAttribute('style'));
-      // Attribute writes only: touching n.style leaves style="" behind after removeAttribute.
-      chrome.forEach((n, i) => n.setAttribute('style', `${saved[i] ?? ''};display:none !important`));
+      // Attribute writes only: setting a property through n.style leaves style=""
+      // behind after removeAttribute. The prefix is the browser's serialized
+      // cssText, not the raw attribute, so an unterminated token in the original
+      // (an open /* comment) cannot swallow the appended display:none.
+      chrome.forEach((n) => n.setAttribute('style', `${n.style.cssText} display: none !important;`));
       try {
         return el.innerText || '';
       } finally {
