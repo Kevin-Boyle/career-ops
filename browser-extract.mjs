@@ -823,10 +823,21 @@ export async function readDom(page) {
     // match: a board can lead with a short <article> (a share widget) ahead of
     // the one holding the posting, and a <main> that is mostly menu would
     // otherwise outrank it.
+    // Read innerText from the live element: on a detached clone it degrades to
+    // textContent, so CSS-hidden text would count and could outrank the posting.
+    // The chrome is hidden only for the read and its style attribute restored.
+    // script/style/noscript are never rendered, so innerText already skips them.
     const strippedText = (el) => {
-      const clone = el.cloneNode(true);
-      clone.querySelectorAll('script, style, nav, header, footer, noscript').forEach((n) => n.remove());
-      return clone.innerText || '';
+      if (el.getClientRects().length === 0 && getComputedStyle(el).display !== 'contents') return '';
+      const chrome = Array.from(el.querySelectorAll('nav, header, footer'));
+      const saved = chrome.map((n) => n.getAttribute('style'));
+      // Attribute writes only: touching n.style leaves style="" behind after removeAttribute.
+      chrome.forEach((n, i) => n.setAttribute('style', `${saved[i] ?? ''};display:none !important`));
+      try {
+        return el.innerText || '';
+      } finally {
+        chrome.forEach((n, i) => (saved[i] == null ? n.removeAttribute('style') : n.setAttribute('style', saved[i])));
+      }
     };
     const candidates = Array.from(document.querySelectorAll('main, [role="main"], article'));
     let text = '';

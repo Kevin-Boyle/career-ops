@@ -46,6 +46,33 @@ try {
     if (menuMain.text.includes('internal developer platform')) pass('readDom compares candidates after stripping nav chrome');
     else fail(`readDom picked the menu-heavy <main>: ${JSON.stringify(menuMain.text.slice(0, 80))}`);
 
+    // CSS-hidden text must not count: a hidden candidate, or a hidden panel
+    // inside one, longer than the visible posting must not outrank it.
+    const hidden = 'Archived posting from a previous hiring round. '.repeat(40);
+    const hiddenCandidate = await read(`<body>
+      <article style="display:none"><p>${hidden}</p></article>
+      <article><h1>Platform Engineer</h1><p>${JD}</p></article>
+    </body>`);
+    if (hiddenCandidate.text.includes('internal developer platform') && !hiddenCandidate.text.includes('Archived posting')) {
+      pass('readDom ignores a hidden candidate longer than the visible posting');
+    } else fail(`readDom read a hidden candidate: ${JSON.stringify(hiddenCandidate.text.slice(0, 80))}`);
+    const hiddenPanel = await read(`<body>
+      <main><div hidden><p>${hidden}</p></div><p>Loading…</p></main>
+      <article><h1>Platform Engineer</h1><p>${JD}</p></article>
+    </body>`);
+    if (hiddenPanel.text.includes('internal developer platform') && !hiddenPanel.text.includes('Archived posting')) {
+      pass('readDom compares rendered text, so a hidden panel does not inflate a candidate');
+    } else fail(`readDom counted hidden panel text: ${JSON.stringify(hiddenPanel.text.slice(0, 80))}`);
+
+    // Hiding the chrome for the read leaves the live page as it was.
+    await read(`<body><main><nav style="color: red">Home</nav><header>Top</header><p>${JD}</p></main></body>`);
+    const restored = await page.evaluate(() => [
+      document.querySelector('nav').getAttribute('style'),
+      document.querySelector('header').getAttribute('style'),
+    ]);
+    if (restored[0] === 'color: red' && restored[1] === null) pass('readDom restores the style attributes of the chrome it hid');
+    else fail(`readDom left the chrome styles changed: ${JSON.stringify(restored)}`);
+
     // Every candidate a stub: stay on the stub (jd mode then fails empty_text
     // and the caller falls back) rather than reading unrelated body text.
     const allStubs = await read(`<body>
